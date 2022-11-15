@@ -84,7 +84,7 @@ module injoy_labs::profile {
         new_username: String
     ) acquires Profile, UserBase {
         let user_addr = signer::address_of(user);
-        let user_base = borrow_global_mut<UserBase>(user_addr);
+        let user_base = borrow_global_mut<UserBase>(@injoy_labs);
         let user_profile = borrow_global_mut<Profile>(user_addr);
         assert!(
             !string::is_empty(&new_username),
@@ -101,7 +101,7 @@ module injoy_labs::profile {
         table::add(
             &mut user_base.name_to_addr_table,
             new_username,
-            user_addr, 
+            user_addr,
         );
         user_profile.username = new_username;
     }
@@ -216,10 +216,13 @@ module injoy_labs::profile {
             vector[],
             vector[],
         );
-        assert!(get_username(user_addr) == username, 101);
-        assert!(get_address(&username) == user_addr, 102);
-        assert!(get_uri(user_addr) == uri, 103);
-        assert!(get_avatar(user_addr) == avatar, 104);
+        assert!(exists_profile(user_addr), 101);
+        assert!(exists_username(&username), 102);
+        assert!(get_username(user_addr) == username, 103);
+        assert!(get_address(&username) == user_addr, 104);
+        assert!(get_description(user_addr) == description, 105);
+        assert!(get_uri(user_addr) == uri, 106);
+        assert!(get_avatar(user_addr) == avatar, 107);
     }
 
     #[test(deployer=@injoy_labs, alice=@0x21)]
@@ -262,5 +265,43 @@ module injoy_labs::profile {
             vector[],
             vector[],
         );       
+    }
+
+    #[test(deployer=@injoy_labs, alice=@0x31)]
+    fun test_change_username(
+        deployer: &signer,
+        alice: &signer,
+    ) acquires UserBase, Profile {
+        test_register(deployer, alice);
+        let alice_addr = signer::address_of(alice);
+        let new_username = string::utf8(b"Alice123");
+        let old_name = get_username(alice_addr);
+        change_username(alice, new_username);
+        assert!(exists_profile(alice_addr), 301);
+        assert!(exists_username(&new_username), 302);
+        assert!(!exists_username(&old_name), 303);
+        assert!(get_username(alice_addr) == new_username, 304);
+    }
+
+    #[test(deployer=@injoy_labs, alice=@0x41, bob=@0x42)]
+    #[expected_failure(abort_code = 0x80002)]
+    fun test_change_username_failed(
+        deployer: &signer,
+        alice: &signer,
+        bob: &signer,
+    ) acquires UserBase, Profile {
+        test_register(deployer, alice);
+        let bob_username = string::utf8(b"bob");
+        register(
+            bob,
+            bob_username,
+            string::utf8(b"couch potato"),
+            string::utf8(b"ipfs://bob-info"),
+            string::utf8(b"ipfs://bob-image"),
+            vector[],
+            vector[],
+            vector[],
+        ); 
+        change_username(alice, bob_username);
     }
 }
