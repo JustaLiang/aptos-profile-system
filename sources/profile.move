@@ -18,6 +18,7 @@ module injoy_labs::profile {
      */
     struct Profile has key {
         username: String,
+        description: String,
         uri: String,
         avatar: String,
         properties: PropertyMap,
@@ -44,6 +45,7 @@ module injoy_labs::profile {
     public fun register(
         user: &signer,
         username: String,
+        description: String,
         uri: String,
         avatar: String,
         keys: vector<String>,
@@ -52,10 +54,7 @@ module injoy_labs::profile {
     ) acquires UserBase {
         let user_addr = signer::address_of(user);
         let user_base = borrow_global_mut<UserBase>(@injoy_labs);
-        assert!(
-            !string::is_empty(&username),
-            error::invalid_argument(E_EMPTY_USERNAME),
-        );
+
         assert!(
             !exists<Profile>(user_addr),
             error::already_exists(E_ALREADY_REGISTERED),
@@ -72,6 +71,7 @@ module injoy_labs::profile {
             user,
             Profile {
                 username,
+                description,
                 uri,
                 avatar,
                 properties: property_map::new(keys, values, types),
@@ -79,13 +79,44 @@ module injoy_labs::profile {
         );
     }
 
+    public fun change_username(
+        user: &signer,
+        new_username: String
+    ) acquires Profile, UserBase {
+        let user_addr = signer::address_of(user);
+        let user_base = borrow_global_mut<UserBase>(user_addr);
+        let user_profile = borrow_global_mut<Profile>(user_addr);
+        assert!(
+            !string::is_empty(&new_username),
+            error::invalid_argument(E_EMPTY_USERNAME),
+        );
+        assert!(
+            !table::contains(&user_base.name_to_addr_table, new_username),
+            error::already_exists(E_PROFILE_NAME_OCCUPIED),
+        );
+        table::remove(
+            &mut user_base.name_to_addr_table,
+            user_profile.username,
+        );
+        table::add(
+            &mut user_base.name_to_addr_table,
+            new_username,
+            user_addr, 
+        );
+        user_profile.username = new_username;
+    }
+
     public fun update_profile(
         user: &signer,
+        new_description: String,
         new_uri: String,
         new_avatar: String,    
     ) acquires Profile {
         let user_addr = signer::address_of(user);
         let user_profile = borrow_global_mut<Profile>(user_addr);
+        if (!string::is_empty(&new_description)) {
+            user_profile.description = new_description;
+        };
         if (!string::is_empty(&new_uri)) {
             user_profile.uri = new_uri;
         };
@@ -133,6 +164,14 @@ module injoy_labs::profile {
         *table::borrow(&user_base.name_to_addr_table, *username)
     }
 
+    public fun get_description(account: address): String acquires Profile {
+        assert!(
+            exists<Profile>(account),
+            error::not_found(E_PROFILE_NOT_EXISTS),
+        );
+        borrow_global<Profile>(account).description    
+    }
+
     public fun get_uri(account: address): String acquires Profile {
         assert!(
             exists<Profile>(account),
@@ -164,11 +203,13 @@ module injoy_labs::profile {
         init_module(deployer);
         let user_addr = signer::address_of(user);
         let username = string::utf8(b"Alice");
+        let description = string::utf8(b"in wonderland");
         let uri = string::utf8(b"ipfs://alice-info");
         let avatar = string::utf8(b"ipfs://alice-image");
         register(
             user,
             username,
+            description,
             uri,
             avatar,
             vector[],
@@ -192,8 +233,9 @@ module injoy_labs::profile {
         register(
             alice,
             username,
-            string::utf8(b"ipfs://alice-info"),
-            string::utf8(b"ipfs://alice-image"),
+            string::utf8(b"couch potato"),
+            string::utf8(b"ipfs://bob-info"),
+            string::utf8(b"ipfs://bob-image"),
             vector[],
             vector[],
             vector[],
@@ -213,8 +255,9 @@ module injoy_labs::profile {
         register(
             bob,
             username,
-            string::utf8(b"ipfs://alice-info"),
-            string::utf8(b"ipfs://alice-image"),
+            string::utf8(b"couch potato"),
+            string::utf8(b"ipfs://bob-info"),
+            string::utf8(b"ipfs://bob-image"),
             vector[],
             vector[],
             vector[],
